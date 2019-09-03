@@ -1,0 +1,15 @@
+{
+  "name": "icims-user-post",
+  "version": "1.0.0",
+  "description": "",
+  "main": "handler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "AUSTIN ABHARI",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^2.4.2",
+    "node-fetch": "^2.6.0"
+  }
+}

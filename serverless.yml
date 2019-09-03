@@ -1,0 +1,36 @@
+# Welcome to Serverless!
+#
+# This file is the main config file for your service.
+# It's very minimal at this point and uses default values.
+# You can always add more config options for more control.
+# We've included some commented out config examples here.
+# Just uncomment any of them to get that config option.
+#
+# For full config options, check the docs:
+#    docs.serverless.com
+#
+# Happy Coding!
+
+service: IcimsUserPost
+
+provider:
+  name: aws
+  runtime: nodejs10.x
+  stage: ${opt:stage, 'dev'}
+  vpc:
+    securityGroupIds:
+    - sg-08d411e2863d501ab
+    subnets:
+    - 0b1dfe500cefda2ab
+
+functions:
+  icims_user_post:
+    handler: handler.run
+    environment:
+      EXTERNAL_AUTH: ${file(.env.${self:provider.stage}.yml):EXTERNAL_AUTH}
+      EXTERNAL_URI: ${file(.env.${self:provider.stage}.yml):EXTERNAL_URI}
+      ICIMS_USERNAME: ${file(.env.${self:provider.stage}.yml):ICIMS_USERNAME}
+      ICIMS_PASSWORD: ${file(.env.${self:provider.stage}.yml):ICIMS_PASSWORD}
+      ICIMS_BASE_URI: ${file(.env.${self:provider.stage}.yml):ICIMS_BASE_URI}
+    events:
+      - sns: ${file(.env.${self:provider.stage}.yml):SNS}
