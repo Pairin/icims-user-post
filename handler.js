@@ -21,8 +21,16 @@ const doRequest = async (endPoint, method, headers, logInfo, body={}) => {
 
   const requestInformation =  { method, headers, body };
   if (!Object.keys(body).length) delete requestInformation.body;
-  const requestData = await fetch(endPoint, requestInformation).then(res => res.json())
+
+  const requestData = await fetch(endPoint, requestInformation)
+    .then(res => {
+        console.log(chalk.yellowBright(`+++ Request Status => ${res.status} +++`))
+
+        return res.status == 201 ? {"status": 201} : res.json();
+    })
     .catch(e => ERRORS.push({error: [method, endPoint, e] }));
+
+  console.log("\n", "DEBUGGER INFORMATION:", JSON.stringify(requestInformation), '\n');
 
   if (resolve(requestData, 'errors', [''])[0] != ''){
     ERRORS.push({error: [method, endPoint, requestData] })
@@ -43,7 +51,7 @@ const checkForIntegration = async (assessmentId) => {
     { 'authorization': EXTERNAL_AUTH, 'Content-Type': 'application/json'},
     "PAIRIN for assessment data",
     JSON.stringify({
-      "query" : `{ assessment( id: ${assessmentId} ) { user { id email } openings { id name settings { integration_type integration_id } applications { results { opening_match_score opening_match_report { url } user { id } } } } } }`
+      "query" : `{ assessment( id: ${assessmentId} ) { user { id email } openings { id name settings { integration_type integration_id } applications { results { id user { id } } } } } }`
     })
   );
   return determineIntegrationType(assessmentData);
@@ -76,16 +84,30 @@ const sentDataToIcims = async (assessmentData) => {
 
   if (applicantWorkFlowUrl == null) return;
 
-  const userMatchScoreData = resolve(assessmentData, 'opening/applications/results' , []).find(c => c.user.id == assessmentData.user.id)
-  const postAssessmentResults = await doRequest(
-    `${resolve(applicantWorkFlowUrl, 'searchResults/0/self')}/fields/assessmentresults`,
+  const userData = resolve(assessmentData, 'opening/applications/results' , []).find(c => c.user.id == assessmentData.user.id)
+  const applicantReportUrl = await doRequest(EXTERNAL_URI,
     "POST",
-    { Authorization: `Basic ${Buffer.from(`${ICIMS_USERNAME}:${ICIMS_PASSWORD}`).toString('base64')}`, "Content-Type" : "application/json" },
+    { 'authorization': EXTERNAL_AUTH, 'Content-Type': 'application/json'},
+    "PAIRIN for assessment data",
+    JSON.stringify({
+      "query" : `{ application( id: ${resolve(userData, 'id', 0)} ) { opening_match_score opening_match_report { url } } }`
+    })
+  );
+
+  if (applicantReportUrl == null) return;
+
+  const lastOne = applicantWorkFlowUrl.searchResults[applicantWorkFlowUrl.searchResults.length-1]
+  const postAssessmentResults = await doRequest(
+    `${lastOne.self}/fields/assessmentresults`,
+    "POST",
+    { 'Authorization': `Basic ${Buffer.from(`${ICIMS_USERNAME}:${ICIMS_PASSWORD}`).toString('base64')}`, 'Content-Type': 'application/json' },
     "iCIMS for assessment status and score",
-    `{ "assessmentname": { "id": "C31649", "value": "Pairin Assessment" },
-       "assessmentstatus": { "id": "D37002019001", "value": "Complete" },
-       "assessmentscore": ${resolve(userMatchScoreData, 'opening_match_score', 0)} }`
+    JSON.stringify({ assessmentname: { id: 'C31649', value: 'Pairin Assessment' },
+                     assessmentstatus: { id: 'D37002019001', value: 'Complete' },
+                     assessmentscore: resolve(applicantReportUrl, 'data/application/opening_match_score', 0),
+                     assessmenturl: resolve(applicantReportUrl, 'data/application/opening_match_report/url', '')})
   )
+
 
   if (postAssessmentResults == null) {
     return;
